@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Industrial Bearing Inspection System</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background: #0a0e1a;
+            color: #e0e0e0;
+        }
+
+        /* Industrial Color Scheme */
+        :root {
+            --industrial-bg: #0a0e1a;
+            --industrial-card: #141a2a;
+            --industrial-border: #2a3440;
+            --industrial-accent: #00a8ff;
+            --industrial-success: #00c853;
+            --industrial-warning: #ff9800;
+            --industrial-danger: #ff3b3b;
+            --industrial-text: #e0e0e0;
+            --industrial-text-muted: #8a8f9a;
+        }
+
+        .dashboard {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #0f1422;
+            border-right: 1px solid var(--industrial-border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .logo {
+            padding: 24px;
+            border-bottom: 1px solid var(--industrial-border);
+        }
+
+        .logo h2 {
+            color: var(--industrial-accent);
+            font-size: 1.5rem;
+        }
+
+        .logo p {
+            font-size: 0.75rem;
+            color: var(--industrial-text-muted);
+            margin-top: 4px;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 0;
+        }
+
+        .nav-item {
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: var(--industrial-text-muted);
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(0, 168, 255, 0.1);
+            color: var(--industrial-accent);
+            border-left: 3px solid var(--industrial-accent);
+        }
+
+        .nav-item i {
+            width: 24px;
+            font-size: 1.2rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--industrial-card);
+            border: 1px solid var(--industrial-border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            color: var(--industrial-text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .stat-trend {
+            font-size: 0.75rem;
+            color: var(--industrial-text-muted);
+        }
+
+        .trend-up { color: var(--industrial-success); }
+        .trend-down { color: var(--industrial-danger); }
+
+        /* Production Gauge */
+        .gauge-container {
+            background: var(--industrial-card);
+            border: 1px solid var(--industrial-border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .gauge-bar {
+            background: var(--industrial-border);
+            border-radius: 10px;
+            height: 24px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .gauge-fill {
+            background: linear-gradient(90deg, var(--industrial-success), var(--industrial-accent));
+            width: 0%;
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        /* Camera Section */
+        .camera-section {
+            background: var(--industrial-card);
+            border: 1px solid var(--industrial-border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .camera-select {
+            background: var(--industrial-bg);
+            border: 1px solid var(--industrial-border);
+            color: var(--industrial-text);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--industrial-accent);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--industrial-danger);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--industrial-success);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--industrial-warning);
+            color: white;
+        }
+
+        .video-container {
+            text-align: center;
+            position: relative;
+        }
+
+        #videoFrame {
+            max-width: 100%;
+            border-radius: 8px;
+            background: #000;
+            border: 1px solid var(--industrial-border);
+        }
+
+        .detection-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin: 4px;
+        }
+
+        .badge-ok { background: var(--industrial-success); color: white; }
+        .badge-warning { background: var(--industrial-warning); color: white; }
+        .badge-reject { background: var(--industrial-danger); color: white; }
+
+        /* Logs Table */
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .logs-table th, .logs-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--industrial-border);
+        }
+
+        .logs-table th {
+            color: var(--industrial-text-muted);
+            font-weight: 500;
+        }
+
+        /* Alert */
+        .alert-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--industrial-danger);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Tabs */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed var(--industrial-border);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: var(--industrial-accent);
+            background: rgba(0, 168, 255, 0.05);
+        }
+
+        .preview-container {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .image-preview {
+            flex: 2;
+        }
+
+        .results-panel {
+            flex: 1;
+            background: var(--industrial-bg);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+            }
+            .sidebar .logo h2, .sidebar .logo p, .sidebar .nav-item span {
+                display: none;
+            }
+            .sidebar .nav-item {
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo">
+                <h2><i class="fas fa-industry"></i> BEARING</h2>
+                <p>Quality Control System</p>
+            </div>
+            <div class="nav-menu">
+                <div class="nav-item active" onclick="switchSection('dashboard')">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" onclick="switchSection('inspection')">
+                    <i class="fas fa-camera"></i>
+                    <span>Inspection</span>
+                </div>
+                <div class="nav-item" onclick="switchSection('upload')">
+                    <i class="fas fa-upload"></i>
+                    <span>Upload Image</span>
+                </div>
+                <div class="nav-item" onclick="switchSection('history')">
+                    <i class="fas fa-history"></i>
+                    <span>History Log</span>
+                </div>
+                <div class="nav-item" onclick="switchSection('reports')">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Reports</span>
+                </div>
+            </div>
+            <div style="padding: 20px; border-top: 1px solid var(--industrial-border);">
+                <div style="font-size: 0.75rem; color: var(--industrial-text-muted);">
+                    <i class="fas fa-microchip"></i> YOLOv11<br>
+                    <i class="fas fa-calendar"></i> Live Production
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="tab-content active">
+                <h2><i class="fas fa-chart-line"></i> Production Dashboard</h2>
+                <div class="stats-grid" id="statsGrid"></div>
+                
+                <div class="gauge-container">
+                    <h3><i class="fas fa-chart-simple"></i> Daily Production Target</h3>
+                    <div class="gauge-bar">
+                        <div class="gauge-fill" id="targetGauge">0%</div>
+                    </div>
+                    <div class="stat-trend" id="targetInfo"></div>
+                </div>
+                
+                <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="gauge-container">
+                        <h3><i class="fas fa-chart-pie"></i> Quality Distribution</h3>
+                        <canvas id="qualityChart" style="max-height: 250px;"></canvas>
+                    </div>
+                    <div class="gauge-container">
+                        <h3><i class="fas fa-chart-line"></i> Hourly Production</h3>
+                        <canvas id="hourlyChart" style="max-height: 250px;"></canvas>
+                    </div>
+                </div>
+                
+                <div class="camera-section">
+                    <h3><i class="fas fa-clock"></i> Recent Inspections</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="logs-table" id="recentLogs">
+                            <thead>
+                                <tr><th>Time</th><th>Class</th><th>Status</th><th>Shift</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspection Section -->
+            <div id="inspection-section" class="tab-content">
+                <h2><i class="fas fa-video"></i> Live Inspection - USB Camera</h2>
+                <div class="camera-section">
+                    <div class="camera-controls">
+                        <select id="cameraSelect" class="camera-select">
+                            <option value="1">USB Camera (Index 1)</option>
+                            <option value="2">USB Camera 2 (Index 2)</option>
+                            <option value="0">Built-in Camera (Index 0)</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="startCamera()"><i class="fas fa-play"></i> Start Camera</button>
+                        <button class="btn btn-danger" onclick="stopCamera()"><i class="fas fa-stop"></i> Stop Camera</button>
+                        <button class="btn btn-warning" onclick="testCameras()"><i class="fas fa-search"></i> Test Cameras</button>
+                    </div>
+                    
+                    <div class="video-container">
+                        <img id="videoFrame" src="" alt="Camera Feed">
+                        <div id="cameraStatus" style="margin-top: 10px;"></div>
+                    </div>
+                    
+                    <div id="inspectionStats" style="margin-top: 20px; display: none;">
+                        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                            <div class="stat-card">
+                                <div class="stat-header">OK (Small)</div>
+                                <div class="stat-value" id="liveOk">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-header">WARNING (Medium)</div>
+                                <div class="stat-value" id="liveWarning">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-header">REJECT (Large)</div>
+                                <div class="stat-value" id="liveReject">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-header">TOTAL</div>
+                                <div class="stat-value" id="liveTotal">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Section -->
+            <div id="upload-section" class="tab-content">
+                <h2><i class="fas fa-upload"></i> Upload Image for Inspection</h2>
+                <div class="camera-section">
+                    <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="uploadImage(this)">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 48px; margin-bottom: 16px;"></i>
+                        <p>Click or drag image here</p>
+                        <p style="font-size: 12px; color: var(--industrial-text-muted);">Supported: JPG, PNG, JPEG</p>
+                    </div>
+                    
+                    <div id="uploadPreview" style="display: none; margin-top: 20px;">
+                        <div class="preview-container">
+                            <div class="image-preview">
+                                <img id="previewImg" src="" style="max-width: 100%; border-radius: 8px;">
+                            </div>
+                            <div class="results-panel">
+                                <h3><i class="fas fa-clipboard-list"></i> Inspection Result</h3>
+                                <div id="detectionResults"></div>
+                                <div id="statistics"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div id="history-section" class="tab-content">
+                <h2><i class="fas fa-history"></i> Inspection History</h2>
+                <div class="camera-section">
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <select id="filterClass" class="camera-select">
+                            <option value="">All Classes</option>
+                            <option value="small">Small (OK)</option>
+                            <option value="medium">Medium (Warning)</option>
+                            <option value="large">Large (Reject)</option>
+                            <option value="no_bearing">No Bearing</option>
+                        </select>
+                        <input type="date" id="filterDateFrom" class="camera-select">
+                        <input type="date" id="filterDateTo" class="camera-select">
+                        <button class="btn btn-primary" onclick="loadHistory()"><i class="fas fa-search"></i> Search</button>
+                        <button class="btn btn-success" onclick="exportData('csv')"><i class="fas fa-download"></i> Export CSV</button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table class="logs-table" id="historyTable">
+                            <thead>
+                                <tr><th>Timestamp</th><th>Class</th><th>Confidence</th><th>Status</th><th>Shift</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="historyPagination" style="margin-top: 20px; text-align: center;"></div>
+                </div>
+            </div>
+
+            <!-- Reports Section -->
+            <div id="reports-section" class="tab-content">
+                <h2><i class="fas fa-chart-line"></i> Quality Reports</h2>
+                <div class="stats-grid">
+                    <div class="gauge-container">
+                        <h3><i class="fas fa-chart-bar"></i> Daily Defect Rate</h3>
+                        <canvas id="defectRateChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="gauge-container">
+                        <h3><i class="fas fa-chart-pie"></i> Class Distribution (30 Days)</h3>
+                        <canvas id="classDistributionChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+                <div class="camera-section">
+                    <h3><i class="fas fa-file-export"></i> Generate Report</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <input type="date" id="reportStart" class="camera-select">
+                        <input type="date" id="reportEnd" class="camera-select">
+                        <button class="btn btn-success" onclick="generateReport()"><i class="fas fa-chart-line"></i> Generate Report</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let cameraActive = false;
+        let qualityChart, hourlyChart, defectRateChart, classDistributionChart;
+        
+        // Initialize charts
+        function initCharts() {
+            const ctx1 = document.getElementById('qualityChart').getContext('2d');
+            qualityChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: { labels: ['OK (Small)', 'Warning (Medium)', 'Reject (Large)'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#00c853', '#ff9800', '#ff3b3b'] }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            
+            const ctx2 = document.getElementById('hourlyChart').getContext('2d');
+            hourlyChart = new Chart(ctx2, {
+                type: 'line',
+                data: { labels: Array.from({length: 24}, (_, i) => `${i}:00`), datasets: [{ label: 'Production', data: Array(24).fill(0), borderColor: '#00a8ff', fill: false }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            
+            const ctx3 = document.getElementById('defectRateChart').getContext('2d');
+            defectRateChart = new Chart(ctx3, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Defect Rate (%)', data: [], backgroundColor: '#ff3b3b' }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            
+            const ctx4 = document.getElementById('classDistributionChart').getContext('2d');
+            classDistributionChart = new Chart(ctx4, {
+                type: 'pie',
+                data: { labels: ['Small', 'Medium', 'Large', 'No Bearing'], datasets: [{ data: [0, 0, 0, 0], backgroundColor: ['#00c853', '#ff9800', '#ff3b3b', '#8a8f9a'] }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+        }
+        
+        function switchSection(section) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`${section}-section`).classList.add('active');
+            event.target.closest('.nav-item').classList.add('active');
+            
+            if (section === 'dashboard') loadDashboard();
+            if (section === 'history') loadHistory();
+            if (section === 'reports') loadReports();
+        }
+        
+        async function loadDashboard() {
+            const response = await fetch('/api/dashboard');
+            const data = await response.json();
+            
+            const statsHtml = `
+                <div class="stat-card"><div class="stat-header">Today's Production</div><div class="stat-value">${data.total}</div></div>
+                <div class="stat-card"><div class="stat-header">OK (Small)</div><div class="stat-value" style="color: #00c853;">${data.small}</div></div>
+                <div class="stat-card"><div class="stat-header">Warning (Medium)</div><div class="stat-value" style="color: #ff9800;">${data.medium}</div></div>
+                <div class="stat-card"><div class="stat-header">Reject (Large)</div><div class="stat-value" style="color: #ff3b3b;">${data.large}</div></div>
+                <div class="stat-card"><div class="stat-header">Defect Rate</div><div class="stat-value">${data.defect_rate.toFixed(1)}%</div></div>
+                <div class="stat-card"><div class="stat-header">Target Achievement</div><div class="stat-value">${data.target_achievement.toFixed(1)}%</div></div>
+            `;
+            document.getElementById('statsGrid').innerHTML = statsHtml;
+            
+            document.getElementById('targetGauge').style.width = `${Math.min(data.target_achievement, 100)}%`;
+            document.getElementById('targetGauge').textContent = `${Math.min(data.target_achievement, 100).toFixed(0)}%`;
+            
+            qualityChart.data.datasets[0].data = [data.small, data.medium, data.large];
+            qualityChart.update();
+            
+            const logsHtml = data.recent_logs.map(log => `
+                <tr><td>${new Date(log.timestamp).toLocaleTimeString()}</td>
+                <td><span class="detection-badge ${log.class === 'small' ? 'badge-ok' : log.class === 'medium' ? 'badge-warning' : 'badge-reject'}">${log.class}</span></td>
+                <td>${log.class === 'small' ? 'OK' : log.class === 'medium' ? 'Warning' : 'Reject'}</td>
+                <td>${log.shift}</td></tr>
+            `).join('');
+            document.querySelector('#recentLogs tbody').innerHTML = logsHtml || '<tr><td colspan="4">No records</td></tr>';
+        }
+        
+        async function loadHistory() {
+            const classFilter = document.getElementById('filterClass').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            
+            let url = '/api/logs?limit=100';
+            if (classFilter) url += `&class=${classFilter}`;
+            if (dateFrom) url += `&date_from=${dateFrom}`;
+            if (dateTo) url += `&date_to=${dateTo}`;
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            const html = data.logs.map(log => `
+                <tr><td>${new Date(log.timestamp).toLocaleString()}</td>
+                <td><span class="detection-badge ${log.class === 'small' ? 'badge-ok' : log.class === 'medium' ? 'badge-warning' : 'badge-reject'}">${log.class}</span></td>
+                <td>${log.confidence}%</td>
+                <td>${log.class === 'small' ? 'OK' : log.class === 'medium' ? 'Warning' : 'Reject'}</td>
+                <td>${log.shift}</td></tr>
+            `).join('');
+            document.querySelector('#historyTable tbody').innerHTML = html || '<tr><td colspan="5">No records</td></tr>';
+        }
+        
+        async function loadReports() {
+            const response = await fetch('/api/dashboard');
+            const data = await response.json();
+            
+            classDistributionChart.data.datasets[0].data = [data.small, data.medium, data.large, data.no_bearing];
+            classDistributionChart.update();
+        }
+        
+        function generateReport() {
+            alert('Report generation started. Check console for details.');
+        }
+        
+        async function exportData(format) {
+            const response = await fetch('/api/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ format })
+            });
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inspection_report_${new Date().toISOString().slice(0,19)}.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function startCamera() {
+            const index = parseInt(document.getElementById('cameraSelect').value);
+            socket.emit('start_camera', { index });
+            document.getElementById('cameraStatus').innerHTML = '<div class="loading"></div> Initializing camera...';
+        }
+        
+        function stopCamera() {
+            socket.emit('stop_camera');
+            document.getElementById('inspectionStats').style.display = 'none';
+        }
+        
+        function testCameras() {
+            socket.emit('test_cameras');
+        }
+        
+        async function uploadImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            document.getElementById('uploadPreview').style.display = 'block';
+            document.getElementById('previewImg').src = URL.createObjectURL(file);
+            document.getElementById('detectionResults').innerHTML = '<div class="loading"></div> Processing...';
+            
+            const response = await fetch('/detect', { method: 'POST', body: formData });
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('previewImg').src = `data:image/jpeg;base64,${data.image}`;
+                let resultsHtml = '';
+                data.detections.forEach(det => {
+                    resultsHtml += `<div class="detection-badge ${det.class === 'small' ? 'badge-ok' : det.class === 'medium' ? 'badge-warning' : 'badge-reject'}">${det.class}: ${det.confidence}%</div>`;
+                });
+                if (data.detections.length === 0) resultsHtml = '<p>No bearing detected</p>';
+                document.getElementById('detectionResults').innerHTML = resultsHtml;
+                document.getElementById('statistics').innerHTML = `<div style="margin-top: 16px;"><strong>Total:</strong> ${data.total}</div>`;
+            }
+        }
+        
+        // Socket events
+        socket.on('connect', () => console.log('Connected'));
+        socket.on('camera_status', (data) => {
+            if (data.status === 'started') {
+                document.getElementById('cameraStatus').innerHTML = `<span style="color: #00c853;">● Camera active (Index ${data.index})</span>`;
+                document.getElementById('inspectionStats').style.display = 'block';
+            } else if (data.status === 'stopped') {
+                document.getElementById('cameraStatus').innerHTML = `<span style="color: #ff3b3b;">● Camera stopped</span>`;
+                document.getElementById('videoFrame').src = '';
+                document.getElementById('inspectionStats').style.display = 'none';
+            } else if (data.status === 'error') {
+                document.getElementById('cameraStatus').innerHTML = `<span style="color: #ff3b3b;">❌ ${data.message}</span>`;
+            }
+        });
+        
+        socket.on('frame', (data) => {
+            if (cameraActive !== false) cameraActive = true;
+            document.getElementById('videoFrame').src = `data:image/jpeg;base64,${data.image}`;
+            
+            let okCount = 0, warnCount = 0, rejectCount = 0;
+            data.detections.forEach(d => {
+                if (d.class === 'small') okCount++;
+                if (d.class === 'medium') warnCount++;
+                if (d.class === 'large') rejectCount++;
+            });
+            document.getElementById('liveOk').innerHTML = okCount;
+            document.getElementById('liveWarning').innerHTML = warnCount;
+            document.getElementById('liveReject').innerHTML = rejectCount;
+            document.getElementById('liveTotal').innerHTML = data.total;
+        });
+        
+        socket.on('defect_alert', (data) => {
+            const toast = document.createElement('div');
+            toast.className = 'alert-toast';
+            toast.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        });
+        
+        socket.on('dashboard_update', (stats) => {
+            if (document.querySelector('#dashboard-section.active')) loadDashboard();
+        });
+        
+        socket.on('cameras_available', (data) => {
+            const select = document.getElementById('cameraSelect');
+            select.innerHTML = '';
+            data.cameras.forEach(cam => {
+                select.innerHTML += `<option value="${cam.index}">${cam.name}</option>`;
+            });
+            if (data.cameras.length === 0) alert('No cameras detected');
+        });
+        
+        // Initial load
+        initCharts();
+        loadDashboard();
+    </script>
+</body>
+</html>
